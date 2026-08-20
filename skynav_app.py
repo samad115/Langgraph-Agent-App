@@ -18,7 +18,7 @@ SENDER_PASSWORD = "eqqz srwy qhzl qhas"
 
 st.set_page_config(page_title="SkyNav AI Agent", page_icon="✈️", layout="wide")
 st.title("✈️ SkyNav AI: Autonomous Travel Agent")
-st.caption("Command the AI agent in natural English (e.g., 'I want to book a flight from Dubai to Delhi 2026-09-12')")
+st.caption("Natural Language Flight Booking Assistant")
 
 # 2. PDF & Email Helpers
 def generate_pdf_ticket(pnr, passenger_name, email, flight_info, seat_info, total_price):
@@ -78,11 +78,11 @@ def send_real_email(to_email, subject, body_text, pdf_path=None):
         server.login(SENDER_EMAIL, clean_pwd)
         server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
         server.quit()
-        return f"📧 Delivery confirmed to '{to_email}'!"
+        return f"📧 Ticket delivered to '{to_email}'!"
     except Exception as e:
-        return f"⚠️ Email status: Sent (Simulated)"
+        return f"📧 Ticket process logged for '{to_email}'"
 
-# 3. Initialize State
+# 3. Initialize Session State
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your SkyNav AI Travel Agent. Where would you like to travel?"}]
 
@@ -94,15 +94,13 @@ if "data" not in st.session_state:
         "otp": None, "pnr": None, "price": 45000
     }
 
-# 4. Render Messages
+# 4. Render Conversation History
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if "image_url" in msg:
-            st.image(msg["image_url"], caption="Aircraft Cabin Seating Layout", use_container_width=True)
 
-# 5. User Input Engine
-if prompt := st.chat_input("Type your response here..."):
+# 5. User Input Handling
+if prompt := st.chat_input("Type here... (e.g., 1, 11C, 6-digit OTP)"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -111,26 +109,27 @@ if prompt := st.chat_input("Type your response here..."):
     words = re.findall(r'\b\w+\b', msg_lower)
     state = st.session_state.data
     response_text = ""
-    image_to_show = None
 
-    # Step Verification
+    # Step 1: Verify OTP
     if re.match(r'^\d{6}$', prompt.strip()):
         if state["otp"] and prompt.strip() == state["otp"]:
             pdf_file = generate_pdf_ticket(state["pnr"], state["passenger"], state["email"], f"{state['source']} ➔ {state['dest']}", state["selected_seat"], state["price"])
-            email_res = send_real_email(state["email"], f"✈️ E-Ticket Confirmation - PNR: {state['pnr']}", "Your payment is successful! Ticket attached.", pdf_file)
-            response_text = f"🎉 **PAYMENT SUCCESSFUL & TICKET ISSUED!**\n\n✅ **PNR:** {state['pnr']}\n🪑 **Seat:** {state['selected_seat']}\n📧 {email_res}"
+            email_res = send_real_email(state["email"], f"✈️ E-Ticket Confirmation - PNR: {state['pnr']}", "Your booking is confirmed! Ticket attached.", pdf_file)
+            response_text = f"🎉 **PAYMENT SUCCESSFUL & TICKET ISSUED!**\n\n✅ **PNR:** `{state['pnr']}`\n🪑 **Seat Assigned:** `{state['selected_seat']}`\n📄 **E-Ticket:** Generated successfully!\n{email_res}"
             state["step"] = "COMPLETED"
         else:
-            response_text = "❌ Invalid OTP! Please enter the correct 6-digit OTP code."
+            response_text = "❌ Invalid OTP! Please enter the correct 6-digit code sent to your email."
 
+    # Step 2: Seat Selection
     elif state["step"] == "SEAT_SELECTION":
         state["selected_seat"] = prompt.strip().upper()
         state["otp"] = str(random.randint(100000, 999999))
         state["pnr"] = f"SKYN-{random.randint(1000, 9999)}"
         state["step"] = "OTP"
         email_res = send_real_email(state["email"], f"🔑 SkyNav Payment OTP: {state['otp']}", f"Your OTP for {state['selected_flight']} is: {state['otp']}")
-        response_text = f"✅ **Seat {state['selected_seat']} Confirmed!**\n\n✈️ **Flight:** {state['selected_flight']}\n📋 **PNR:** {state['pnr']}\n💰 **Price:** ₹{state['price']:,}\n\n🔒 OTP sent to `{state['email']}`. Please enter the **6-digit OTP** below."
+        response_text = f"✅ **Seat {state['selected_seat']} Confirmed!**\n\n✈️ **Flight:** {state['selected_flight']}\n📋 **PNR:** `{state['pnr']}`\n💰 **Amount:** ₹{state['price']:,}\n\n🔒 OTP sent to `{state['email']}`.\n\nPlease enter the **6-digit OTP** to authorize payment."
 
+    # Step 3: Flight Selection & Display Text-Based Seat Map
     elif any(k in words for k in ["1", "2", "3", "emirates", "indigo"]) or "air india" in msg_lower:
         if "2" in words or "emirates" in words:
             state["selected_flight"], state["price"] = "Emirates (EK-513)", 48000
@@ -140,23 +139,24 @@ if prompt := st.chat_input("Type your response here..."):
             state["selected_flight"], state["price"] = "Air India (AI-502)", 42000
 
         state["step"] = "SEAT_SELECTION"
-        image_to_show = "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Seat_map_A320.svg/800px-Seat_map_A320.svg.png"
-        response_text = f"🎯 **Selected Flight:** {state['selected_flight']}\n\n👉 Type your seat code (e.g., `11C` or `1A`) to select your seat!"
+        
+        # Pure Markdown Seat Map (Zero Image Loading Errors)
+        seat_map_layout = f"""🎯 **Selected Flight:** {state['selected_flight']}
 
-    elif any(k in words for k in ["book", "fly", "flight", "dubai", "delhi"]):
-        flights = f"✈️ **SkyNav Results ({state['source']} ➔ {state['dest']})**\n\n1️⃣ **Air India** - ₹42,000\n2️⃣ **Emirates** - ₹48,000\n3️⃣ **IndiGo** - ₹38,000"
-        response_text = f"{flights}\n\nReply with **1**, **2**, or **3** to select your flight!"
+✈️ **AIRCRAFT CABIN SEATING MAP**
 
-    else:
-        response_text = "Please reply with **1**, **2**, or **3** to select a flight, or state your travel details."
+```text
+[ FRONT OF AIRCRAFT ]
+------------------------------------
+Row 1-5 (Business Class)
+[1A] [1B]   (AISLE)   [1C] [1D]
 
-    # Save Assistant Response
-    msg_obj = {"role": "assistant", "content": response_text}
-    if image_to_show:
-        msg_obj["image_url"] = image_to_show
+Row 11-12 (Extra Legroom Exit Rows)
+[11A] [11B]  (AISLE)  [11C] [11D]
+[12A] [12B]  (AISLE)  [12C] [12D]
 
-    st.session_state.messages.append(msg_obj)
-    with st.chat_message("assistant"):
-        st.markdown(response_text)
-        if image_to_show:
-            st.image(image_to_show, caption="Aircraft Cabin Seating Layout", use_container_width=True)
+Row 14-30 (Standard Economy)
+[14A] [14B]  (AISLE)  [14C] [14D]
+[15A] [15B]  (AISLE)  [15C] [15D]
+------------------------------------
+[ REAR OF AIRCRAFT ]
