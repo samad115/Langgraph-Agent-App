@@ -129,7 +129,7 @@ if prompt := st.chat_input("Type here... (e.g., 1, 11C, 6-digit OTP)"):
         email_res = send_real_email(state["email"], f"🔑 SkyNav Payment OTP: {state['otp']}", f"Your OTP for {state['selected_flight']} is: {state['otp']}")
         response_text = f"✅ **Seat {state['selected_seat']} Confirmed!**\n\n✈️ **Flight:** {state['selected_flight']}\n📋 **PNR:** `{state['pnr']}`\n💰 **Amount:** ₹{state['price']:,}\n\n🔒 OTP sent to `{state['email']}`.\n\nPlease enter the **6-digit OTP** to authorize payment."
 
-    # Step 3: Flight Selection & Display Text-Based Seat Map
+    # Step 3: Flight Selection & Display Seat Map
     elif any(k in words for k in ["1", "2", "3", "emirates", "indigo"]) or "air india" in msg_lower:
         if "2" in words or "emirates" in words:
             state["selected_flight"], state["price"] = "Emirates (EK-513)", 48000
@@ -140,23 +140,35 @@ if prompt := st.chat_input("Type here... (e.g., 1, 11C, 6-digit OTP)"):
 
         state["step"] = "SEAT_SELECTION"
         
-        # Pure Markdown Seat Map (Zero Image Loading Errors)
-        seat_map_layout = f"""🎯 **Selected Flight:** {state['selected_flight']}
+        flight_name = state['selected_flight']
+        response_text = (
+            f"🎯 **Selected Flight:** {flight_name}\n\n"
+            "✈️ **AIRCRAFT CABIN SEATING MAP**\n\n"
+            "```text\n"
+            "[ FRONT OF AIRCRAFT ]\n"
+            "------------------------------------\n"
+            "Row 1-5 (Business Class)\n"
+            "[1A] [1B]   (AISLE)   [1C] [1D]\n\n"
+            "Row 11-12 (Extra Legroom Exit Rows)\n"
+            "[11A] [11B]  (AISLE)  [11C] [11D]\n"
+            "[12A] [12B]  (AISLE)  [12C] [12D]\n\n"
+            "Row 14-30 (Standard Economy)\n"
+            "[14A] [14B]  (AISLE)  [14C] [14D]\n"
+            "[15A] [15B]  (AISLE)  [15C] [15D]\n"
+            "------------------------------------\n"
+            "[ REAR OF AIRCRAFT ]\n"
+            "```\n\n"
+            "👉 **How to Book:** Type your seat preference directly into the chat (e.g., `11C` or `1A`)!"
+        )
 
-✈️ **AIRCRAFT CABIN SEATING MAP**
+    # Step 4: Search Flights
+    elif any(k in words for k in ["book", "fly", "flight", "dubai", "delhi"]):
+        response_text = f"✈️ **SkyNav Search Results ({state['source']} ➔ {state['dest']})**\n\n1️⃣ **Air India (AI-502)** - ₹42,000\n2️⃣ **Emirates (EK-513)** - ₹48,000\n3️⃣ **IndiGo (6E-95)** - ₹38,000\n\nReply with **1**, **2**, or **3** to pick your flight!"
 
-```text
-[ FRONT OF AIRCRAFT ]
-------------------------------------
-Row 1-5 (Business Class)
-[1A] [1B]   (AISLE)   [1C] [1D]
+    else:
+        response_text = "Reply with **1**, **2**, or **3** to pick a flight, or type your seat number (e.g., `11C`)."
 
-Row 11-12 (Extra Legroom Exit Rows)
-[11A] [11B]  (AISLE)  [11C] [11D]
-[12A] [12B]  (AISLE)  [12C] [12D]
-
-Row 14-30 (Standard Economy)
-[14A] [14B]  (AISLE)  [14C] [14D]
-[15A] [15B]  (AISLE)  [15C] [15D]
-------------------------------------
-[ REAR OF AIRCRAFT ]
+    # Save & Display Assistant Response
+    st.session_state.messages.append({"role": "assistant", "content": response_text})
+    with st.chat_message("assistant"):
+        st.markdown(response_text)
