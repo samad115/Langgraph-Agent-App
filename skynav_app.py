@@ -27,8 +27,10 @@ def get_secret(key: str):
         return os.environ.get(key)
 
 
-SENDER_EMAIL = get_secre("")
-SENDER_PASSWORD = get_secret("")
+import streamlit as st
+
+SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "mohammedsamad475@gmail.com")
+SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "eqqz srwy qhzl qhas")
 
 # =========================================================
 # 2. PDF GENERATOR & EMAIL DISPATCH ENGINES
