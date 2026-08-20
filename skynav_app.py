@@ -20,7 +20,7 @@ if st.button("Send Request"):
     else:
         with st.spinner("SkyNav Agent is processing flight options..."):
             try:
-                llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key)
+                llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", google_api_key=api_key)
                 system_prompt = "You are SkyNav AI, an autonomous travel agent. Process user queries politely and provide clear travel routes, flights, or booking assistance."
                 messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_input)]
                 response = llm.invoke(messages)
