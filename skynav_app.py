@@ -27,8 +27,8 @@ def get_secret(key: str):
         return os.environ.get(key)
 
 
-SENDER_EMAIL = get_secre("mohammedsamad475@gmail.com")
-SENDER_PASSWORD = get_secret("eqqz srwy qhzl qhas")
+SENDER_EMAIL = get_secre("")
+SENDER_PASSWORD = get_secret("")
 
 # =========================================================
 # 2. PDF GENERATOR & EMAIL DISPATCH ENGINES
