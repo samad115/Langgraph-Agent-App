@@ -3,141 +3,123 @@ import io
 import random
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-# ReportLab libraries for PDF Ticket generation
+# PDF Generator Libraries
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 
-st.set_page_config(page_title="SkyNav AI - Autonomous Booking", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="SkyNav AI - Interactive Chat Agent", page_icon="✈️", layout="wide")
 
-st.title("✈️ SkyNav AI: Autonomous Travel & Booking Agent")
-st.write("Complete end-to-end booking flow: Search, Seat Selection, OTP Verification, Payment, and PDF Ticket Generation.")
+st.title("✈️ SkyNav AI: Autonomous Travel Agent")
+st.caption("Chat naturally to search flights, pick Option 1/2, select seats, verify OTP, and generate tickets.")
 
 api_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
-# Initialize Session States
-if "booking_step" not in st.session_state:
-    st.session_state.booking_step = "search"
-if "otp_code" not in st.session_state:
-    st.session_state.otp_code = None
-if "ticket_data" not in st.session_state:
-    st.session_state.ticket_data = {}
+# 1. Chat History and Session State Setup
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Hello! I am SkyNav AI. Where would you like to fly today?"}
+    ]
+if "pnr_data" not in st.session_state:
+    st.session_state.pnr_data = None
 
-# PDF Generation Function
-def generate_pdf_ticket(details):
+# PDF Ticket Helper Function
+def create_pdf_ticket(passenger_name="Samad", flight_info="Emirates EK - DXB to DEL", seat="12A", pnr="SKY8829"):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
-    
-    # Ticket Header
     p.setFillColor(colors.HexColor("#1E3A8A"))
     p.rect(0, 700, 612, 100, fill=True, stroke=False)
     p.setFillColor(colors.white)
-    p.setFont("Helvetica-Bold", 24)
-    p.drawString(40, 740, "SkyNav AI - E-Ticket Boarding Pass")
+    p.setFont("Helvetica-Bold", 22)
+    p.drawString(40, 740, "SkyNav AI - Confirmed Boarding Pass")
     
-    # Ticket Details
     p.setFillColor(colors.black)
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(40, 650, f"Passenger Name: {details.get('passenger', 'N/A')}")
-    p.drawString(40, 620, f"Route: {details.get('from_city', 'DXB')} -> {details.get('to_city', 'DEL')}")
-    p.drawString(40, 590, f"Travel Date: {details.get('date', '2026-09-10')}")
-    p.drawString(40, 560, f"Seat Number: {details.get('seat', '12A')}")
-    p.drawString(40, 530, f"Booking Ref (PNR): {details.get('pnr', 'SKY99882')}")
-    p.drawString(40, 500, f"Amount Paid: ₹{details.get('amount', '15,000')}")
-    p.drawString(40, 470, f"Payment Status: SUCCESS (Verified via OTP)")
-    
-    p.setFont("Helvetica-Oblique", 10)
-    p.setFillColor(colors.gray)
-    p.drawString(40, 400, "Thank you for booking with SkyNav AI. Safe Travels!")
-    
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(40, 650, f"Passenger Name: {passenger_name}")
+    p.drawString(40, 625, f"Flight Details: {flight_info}")
+    p.drawString(40, 600, f"Seat Number: {seat}")
+    p.drawString(40, 575, f"PNR / Booking ID: {pnr}")
+    p.drawString(40, 550, f"Status: CONFIRMED & PAID")
     p.showPage()
     p.save()
     buffer.seek(0)
     return buffer
 
-# --- STEP 1: Flight Query & AI Agent ---
-st.subheader("1. AI Flight Search & Assistance")
-user_input = st.text_input("Tell SkyNav AI your travel plans:", value="I want to book a flight from Dubai to Delhi on 2026-09-10")
+# Sidebar - Quick Actions & PDF Download
+with st.sidebar:
+    st.header("🎫 Ticket & PDF Hub")
+    if st.session_state.pnr_data:
+        st.success("Booking Confirmed!")
+        pdf_bytes = create_pdf_ticket(
+            passenger_name=st.session_state.pnr_data.get("name", "Samad"),
+            flight_info=st.session_state.pnr_data.get("flight", "Emirates DXB to DEL"),
+            seat=st.session_state.pnr_data.get("seat", "12A"),
+            pnr=st.session_state.pnr_data.get("pnr", "SKY9921")
+        )
+        st.download_button(
+            label="📄 Download E-Ticket PDF",
+            data=pdf_bytes,
+            file_name="SkyNav_Flight_Ticket.pdf",
+            mime="application/pdf"
+        )
+    else:
+        st.info("Complete your booking in chat to unlock your downloadable PDF ticket.")
 
-if st.button("Search Flights & Process Request"):
+# 2. Display Past Chat Messages
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+
+# 3. Handle Interactive User Input
+if prompt := st.chat_input("Type here (e.g., 'Book flight from Dubai to Delhi', 'I select Option 1', 'Seat 12A')..."):
     if not api_key:
         st.error("⚠️ Gemini API Key missing in Streamlit Secrets.")
-    else:
-        with st.spinner("SkyNav Agent checking flights..."):
+        st.stop()
+
+    # Append user message
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.write(prompt)
+
+    # Process AI Agent Response
+    with st.chat_message("assistant"):
+        with st.spinner("SkyNav AI processing..."):
             try:
                 llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", google_api_key=api_key)
-                system_prompt = "You are SkyNav AI. Provide immediate clear route options and confirm flight availability."
-                messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_input)]
-                response = llm.invoke(messages)
                 
-                out = response.content[0].get("text", str(response.content[0])) if isinstance(response.content, list) else response.content
-                st.success("🤖 **AI Agent Response:**")
-                st.write(out)
-                st.session_state.booking_step = "select_seat"
+                # System instructions for step-by-step guidance
+                sys_msg = SystemMessage(content="""
+                You are SkyNav AI, an autonomous travel booking agent. 
+                Follow this flow step-by-step:
+                1. If user asks for flights, list clear options (Option 1, Option 2) with prices.
+                2. If user selects Option 1 or 2, confirm the choice and ask for Passenger Name and Seat Preference (e.g., 12A, 14B).
+                3. Once seat/name are provided, simulate sending a 6-digit OTP for payment and ask user to enter OTP.
+                4. When user enters OTP, confirm booking and give them a PNR number.
+                Keep responses friendly, helpful, and concise.
+                """)
+
+                # Construct full conversation context
+                langchain_msgs = [sys_msg]
+                for m in st.session_state.messages:
+                    if m["role"] == "user":
+                        langchain_msgs.append(HumanMessage(content=m["content"]))
+                    else:
+                        langchain_msgs.append(AIMessage(content=m["content"]))
+
+                res = llm.invoke(langchain_msgs)
+                
+                # Format response text
+                text_out = res.content[0].get("text", str(res.content[0])) if isinstance(res.content, list) else res.content
+                
+                st.write(text_out)
+                st.session_state.messages.append({"role": "assistant", "content": text_out})
+
+                # Detect if booking complete to unlock PDF
+                if "pnr" in text_out.lower() or "confirmed" in text_out.lower() or "otp verified" in text_out.lower():
+                    st.session_state.pnr_data = {"name": "Samad", "flight": "Selected Option", "seat": "12A", "pnr": f"SKY{random.randint(1000, 9999)}"}
+                    st.rerun()
+
             except Exception as e:
                 st.error(f"Error: {e}")
-
-st.divider()
-
-# --- STEP 2: Seat Selection & Passenger Info ---
-if st.session_state.booking_step in ["select_seat", "otp_payment", "completed"]:
-    st.subheader("2. Passenger Details & Seat Selection")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        passenger_name = st.text_input("Passenger Full Name", value="Samad")
-    with col2:
-        email_addr = st.text_input("Email Address for Ticket & OTP", value="samad@example.com")
-    with col3:
-        seat_num = st.selectbox("Select Seat Class & No.", ["12A (Window - ₹15,000)", "12B (Middle - ₹14,000)", "14C (Aisle - ₹16,000)", "2F (Business - ₹45,000)"])
-
-    if st.button("Proceed to Payment & Send OTP"):
-        # Generate 6-digit OTP
-        generated_otp = str(random.randint(100000, 999999))
-        st.session_state.otp_code = generated_otp
-        st.session_state.ticket_data = {
-            "passenger": passenger_name,
-            "email": email_addr,
-            "seat": seat_num.split(" ")[0],
-            "amount": seat_num.split("₹")[1].replace(")", ""),
-            "from_city": "Dubai (DXB)",
-            "to_city": "Delhi (DEL)",
-            "date": "2026-09-10",
-            "pnr": f"SKY{random.randint(10000, 99999)}"
-        }
-        st.session_state.booking_step = "otp_payment"
-        st.info(f"📧 **[MOCK EMAIL SENT]** OTP sent to `{email_addr}`. (For testing, your OTP is: **`{generated_otp}`**)")
-
-st.divider()
-
-# --- STEP 3: OTP Verification & Payment ---
-if st.session_state.booking_step in ["otp_payment", "completed"]:
-    st.subheader("3. OTP Security Verification & Payment")
-    
-    entered_otp = st.text_input("Enter 6-Digit OTP received on Email:", type="password")
-    
-    if st.button("Verify OTP & Pay Now"):
-        if entered_otp == st.session_state.otp_code:
-            st.success("✅ OTP Verified Successfully! Payment processed.")
-            st.session_state.booking_step = "completed"
-        else:
-            st.error("❌ Invalid OTP. Please enter the correct code shown above.")
-
-st.divider()
-
-# --- STEP 4: Download PDF Ticket ---
-if st.session_state.booking_step == "completed":
-    st.subheader("4. Ticket Confirmed & PDF Download")
-    st.balloons()
-    st.success("🎉 Booking Completed! Your flight ticket is ready for download.")
-    
-    pdf_data = generate_pdf_ticket(st.session_state.ticket_data)
-    
-    st.download_button(
-        label="📄 Download E-Ticket PDF",
-        data=pdf_data,
-        file_name=f"SkyNav_Ticket_{st.session_state.ticket_data.get('pnr')}.pdf",
-        mime="application/pdf"
-    )
