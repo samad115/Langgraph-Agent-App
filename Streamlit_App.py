@@ -12,7 +12,7 @@ st.write("Enterprise-grade Agentic AI Workflow with Human-in-the-Loop Security G
 api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
 
 order_id = st.text_input("Order ID", "ORD-9082")
-amount = st.number_input("Refund Amount (₹)", value=750.0)
+amount = st.number_input("Refund Amount (₹)", value=500.0)
 
 st.subheader("🙋‍♂️ Human-in-the-Loop Control Panel")
 decision = st.radio("Manager Approval Decision", ["Pending Approval", "Approve", "Reject"])
